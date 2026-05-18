@@ -1,0 +1,11 @@
+{
+  "name": "analytics-platform",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "build:web": "pnpm --filter web build",
+    "lint:web": "pnpm --filter web lint",
+    "typecheck:web": "pnpm --filter web typecheck",
+    "dev:api": "cd apps/api && uv run python -m fastapi dev main.py"
+  }
+}

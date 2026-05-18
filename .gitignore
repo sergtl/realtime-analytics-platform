@@ -1,0 +1,65 @@
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# node
+node_modules/
+.pnpm-store/
+.pnp.*
+
+# next
+.next/
+out/
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*$py.class
+
+# virtual envs
+.venv/
+venv/
+
+# alembic
+alembic/versions/__pycache__/
+
+# coverage
+.coverage
+htmlcov/
+
+# build artifacts
+dist/
+build/
+
+# sqlite
+*.db
+
+# misc
+tmp/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
