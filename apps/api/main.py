@@ -4,9 +4,11 @@ import json
 from fastapi import Depends, FastAPI, Request
 
 from db.database import Base, engine
+from db.models import Event
 from repositories.events import enqueue_event
 from schemas.events import BaseEvent
 import redis.asyncio as redis
+
 
 def get_redis(request: Request) -> redis.Redis:
     return request.app.state.redis

@@ -1,10 +1,44 @@
 import asyncio
 import json
 import redis.asyncio as redis
+from sqlalchemy.dialects.postgresql import insert
+from db.database import AsyncSessionLocal
+from db.models import Event
 
 STREAM_KEY = "events"
 CONSUMER_GROUP = "analytics-ingestors"
 NUM_WORKERS = 5
+
+async def persist_messages(messages: list[tuple[str, dict]]):
+    rows = []
+
+    for message_id, fields in messages:
+        payload = json.loads(fields["payload"])
+
+        rows.append({
+            "redis_message_id": message_id,
+            "event_id": fields["event_id"],
+            "event_type": fields["event_type"],
+            "timestamp": fields["timestamp"],
+            "source": fields["source"],
+            "correlation_id": fields["correlation_id"],
+            "schema_version": fields["schema_version"],
+            "payload": payload,
+        })
+
+    async with AsyncSessionLocal() as db:
+        async with db.begin():
+            stmt = (
+                insert(Event)
+                .values(rows)
+                .on_conflict_do_nothing(
+                    index_elements=["redis_message_id"]
+                )
+
+            )
+            
+            await db.execute(stmt)
+
 
 async def create_consumer_group(r: redis.Redis):
     try:
@@ -43,13 +77,22 @@ async def worker(r: redis.Redis, worker_name: str):
             continue
 
         for stream_name, messages in response:
-            for message_id, fields in messages:
-                payload = json.loads(fields["payload"])
-                print(f"{worker_name} consumed: {message_id} -> {payload}")
+            try:
+                await persist_messages(messages)
 
-                # TODO: write to DB
+                message_ids = [message_id for message_id, _ in messages]
 
-                await r.xack(STREAM_KEY, CONSUMER_GROUP, message_id)
+                await r.xack(
+                    STREAM_KEY,
+                    CONSUMER_GROUP,
+                    *message_ids,
+                )
+
+            except Exception:
+                # log err
+                # do NOT xack
+                # message stays pending in Redis
+                raise
 
 
 async def main():

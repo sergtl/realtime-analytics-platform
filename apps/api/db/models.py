@@ -1,8 +1,8 @@
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import DateTime, String, UUID as PG_UUID, Index
+from sqlalchemy import BigInteger, DateTime, Identity, String, UUID as PG_UUID, Index
 from sqlalchemy.dialects.postgresql import JSONB
 
 from db.database import Base
@@ -10,10 +10,25 @@ from db.database import Base
 class Event(Base):
     __tablename__ = "events"
 
+    # db primary key
+    id: Mapped[int] = mapped_column(
+        BigInteger,
+        Identity(),
+        primary_key=True,
+    )
+
+    # idempotency key (logical event id; producer generated)
     event_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4,
+        nullable=False,
+        unique=True,
+    )
+
+    # redis stream delivery id
+    redis_message_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True,
     )
 
     event_type: Mapped[str] = mapped_column(
@@ -51,5 +66,5 @@ class Event(Base):
     )
 
     __table_args__ = (
-        Index("ix_events_payload_gin", payload, postgresql_using="gin"),
+        Index("ix_events_payload_gin", "payload", postgresql_using="gin"),
     )
