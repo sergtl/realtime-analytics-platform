@@ -5,10 +5,10 @@ on:
     branches: [main]
     paths:
       - "apps/web/**"
-      - ".github/workflows/web-ci.yml"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
+      - ".github/workflows/web-ci.yml"
 
 jobs:
   test:
@@ -29,5 +29,5 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm run lint
-      - run: pnpm run build
+      - run: pnpm --dir apps/web run lint
+      - run: pnpm --dir apps/web run build
