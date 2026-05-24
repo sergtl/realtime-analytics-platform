@@ -1,11 +1,8 @@
-from db.session import AsyncSession
-from db.models import Event
+import redis.asyncio as redis
 
-async def create_event(db: AsyncSession, event: Event) -> Event:
-    db_event = Event(**event.model_dump())
+STREAM_KEY = "events"
+CONSUMER_GROUP = "analytics-ingestors"
+NUM_WORKERS = 5
 
-    db.add(db_event)
-    await db.commit()
-    await db.refresh(db_event)
-
-    return db_event
+async def enqueue_event(r: redis.Redis, event: dict) -> str:
+    return await r.xadd(STREAM_KEY, event)
