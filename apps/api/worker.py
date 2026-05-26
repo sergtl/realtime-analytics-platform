@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import redis.asyncio as redis
 from sqlalchemy.dialects.postgresql import insert
 from db.database import AsyncSessionLocal
@@ -40,6 +41,14 @@ async def persist_messages(messages: list[tuple[str, dict]]):
             await db.execute(stmt)
 
 
+async def acknowledge_messages(r: redis.Redis, message_ids: list[str]):
+    await r.xack(
+        STREAM_KEY,
+        CONSUMER_GROUP,
+        *message_ids,
+    )
+
+
 async def create_consumer_group(r: redis.Redis):
     try:
         await r.xgroup_create(STREAM_KEY, groupname=CONSUMER_GROUP, id="0", mkstream=True)
@@ -69,30 +78,53 @@ async def worker_manager(r: redis.Redis):
 
 
 async def worker(r: redis.Redis, worker_name: str):
+    # keep time of last message recovery op
+    last_recovery_at = time.perf_counter()
+
+    claim_cursor = "0-0"
+
     while True:
         response = await r.xreadgroup(CONSUMER_GROUP, worker_name, block=2000, count=10, streams={STREAM_KEY: ">"})
 
-        if not response:
-            print("No new messages")
-            continue
+        if response:
+            for stream_name, messages in response:
+                try:
+                    await persist_messages(messages)
 
-        for stream_name, messages in response:
-            try:
-                await persist_messages(messages)
+                    message_ids = [message_id for message_id, _ in messages]
 
-                message_ids = [message_id for message_id, _ in messages]
+                    await acknowledge_messages(r, message_ids)
 
-                await r.xack(
-                    STREAM_KEY,
-                    CONSUMER_GROUP,
-                    *message_ids,
-                )
+                except Exception:
+                    # log err
+                    # do NOT xack
+                    # message stays pending in Redis
+                    # TODO: don't kill the worker by raise
+                    raise
+        
+        now = time.perf_counter()
 
-            except Exception:
-                # log err
-                # do NOT xack
-                # message stays pending in Redis
-                raise
+        if now - last_recovery_at >= 2:
+
+            # check for recovery (are there un-xack'ed messages?)
+            # TODO: api might change, look it up
+            next_cursor, claimed_messages, _ = await r.xautoclaim(STREAM_KEY, CONSUMER_GROUP, worker_name, 10000, claim_cursor)
+
+            claim_cursor = next_cursor
+
+            last_recovery_at = now
+
+            if claimed_messages:
+                try:
+                    await persist_messages(claimed_messages)
+
+                    message_ids = [message_id for message_id, _ in claimed_messages]
+
+                    await acknowledge_messages(r, message_ids)
+
+                except Exception:
+                    # TODO: same as above - don't kill the worker by raise. Just log and continue
+                    raise
 
 
 async def main():
