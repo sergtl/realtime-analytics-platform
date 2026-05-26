@@ -3,7 +3,6 @@ import json
 
 from fastapi import Depends, FastAPI, Request
 
-from db.database import Base, engine
 from repositories.events import enqueue_event
 from schemas.events import BaseEvent
 import redis.asyncio as redis
@@ -15,14 +14,10 @@ def get_redis(request: Request) -> redis.Redis:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     app.state.redis = redis.Redis(decode_responses=True)
 
     yield
 
-    await engine.dispose()
     await app.state.redis.aclose()
 
 

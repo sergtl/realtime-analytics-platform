@@ -1,12 +1,11 @@
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-DATABASE_URL = "postgresql+psycopg://sergei:postgres@localhost:5432/rpap"
+from core.config import settings
 
 engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,
-    pool_pre_ping=True
+    settings.database_url,
+    echo=settings.debug,
+    pool_pre_ping=settings.pool_pre_ping,
 )
 
 AsyncSessionLocal = async_sessionmaker(

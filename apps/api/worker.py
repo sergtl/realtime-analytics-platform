@@ -5,10 +5,7 @@ import redis.asyncio as redis
 from sqlalchemy.dialects.postgresql import insert
 from db.database import AsyncSessionLocal
 from db.models import Event
-
-STREAM_KEY = "events"
-CONSUMER_GROUP = "analytics-ingestors"
-NUM_WORKERS = 5
+from core.config import settings
 
 async def persist_messages(messages: list[tuple[str, dict]]):
     rows = []
@@ -43,15 +40,15 @@ async def persist_messages(messages: list[tuple[str, dict]]):
 
 async def acknowledge_messages(r: redis.Redis, message_ids: list[str]):
     await r.xack(
-        STREAM_KEY,
-        CONSUMER_GROUP,
+        settings.stream_key,
+        settings.consumer_group,
         *message_ids,
     )
 
 
 async def create_consumer_group(r: redis.Redis):
     try:
-        await r.xgroup_create(STREAM_KEY, groupname=CONSUMER_GROUP, id="0", mkstream=True)
+        await r.xgroup_create(settings.stream_key, groupname=settings.consumer_group, id="0", mkstream=True)
     except redis.ResponseError as e:
         print(f"raised: {e}")
 
@@ -60,7 +57,7 @@ async def worker_manager(r: redis.Redis):
     tasks = []
 
     try:
-        for i in range(NUM_WORKERS):
+        for i in range(settings.num_workers):
             worker_name = f"worker-{i}"
 
             task = asyncio.create_task(worker(r, worker_name=worker_name))
@@ -84,7 +81,7 @@ async def worker(r: redis.Redis, worker_name: str):
     claim_cursor = "0-0"
 
     while True:
-        response = await r.xreadgroup(CONSUMER_GROUP, worker_name, block=2000, count=10, streams={STREAM_KEY: ">"})
+        response = await r.xreadgroup(settings.consumer_group, worker_name, block=2000, count=10, streams={settings.stream_key: ">"})
 
         if response:
             for stream_name, messages in response:
@@ -108,7 +105,7 @@ async def worker(r: redis.Redis, worker_name: str):
 
             # check for recovery (are there un-xack'ed messages?)
             # TODO: api might change, look it up
-            next_cursor, claimed_messages, _ = await r.xautoclaim(STREAM_KEY, CONSUMER_GROUP, worker_name, 10000, claim_cursor)
+            next_cursor, claimed_messages, _ = await r.xautoclaim(settings.stream_key, settings.consumer_group, worker_name, 10000, claim_cursor)
 
             claim_cursor = next_cursor
 
