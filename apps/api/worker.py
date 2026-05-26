@@ -33,7 +33,7 @@ async def persist_messages(messages: list[tuple[str, dict]]):
                 insert(Event)
                 .values(rows)
                 .on_conflict_do_nothing(
-                    index_elements=["redis_message_id"]
+                    index_elements=["event_id"]
                 )
 
             )
