@@ -1,8 +1,8 @@
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import BigInteger, DateTime, Identity, String, UUID as PG_UUID, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, String, UUID as PG_UUID, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 
 from db.database import Base
@@ -21,7 +21,6 @@ class Event(Base):
     event_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         nullable=False,
-        unique=True,
     )
 
     # redis stream delivery id
@@ -65,6 +64,58 @@ class Event(Base):
         nullable=False,
     )
 
-    __table_args__ = (
-        Index("ix_events_payload_gin", "payload", postgresql_using="gin"),
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", name="fk_events_project"),
+        nullable=False,
+        index=True,
     )
+
+    project: Mapped["Project"] = relationship(back_populates="events")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "event_id",
+            name="uq_events_project_event_id",
+        ),
+        Index("ix_events_payload_gin", "payload", postgresql_using="gin"),
+        Index("ix_events_project_timestamp", "project_id", "timestamp"),
+    )
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+    )
+
+    slug: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        unique=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    events: Mapped[list["Event"]] = relationship(back_populates="project")
+
