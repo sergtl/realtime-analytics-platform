@@ -66,9 +66,8 @@ class Event(Base):
 
     project_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("projects.id", name="fk_events_project"),
+        ForeignKey("projects.id", name="fk_events_project", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
 
     project: Mapped["Project"] = relationship(back_populates="events")
@@ -117,5 +116,58 @@ class Project(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # orm rel attributes for convenience
     events: Mapped[list["Event"]] = relationship(back_populates="project")
+    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="project")
 
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", name="fk_api_keys_project", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    project: Mapped["Project"] = relationship(back_populates="api_keys")
+
+    name: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+    )
+
+    prefix: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        index=True,
+    )
+
+    key_hash: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+        unique=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
