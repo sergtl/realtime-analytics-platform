@@ -21,6 +21,7 @@ async def persist_messages(messages: list[tuple[str, dict]]):
             "source": fields["source"],
             "correlation_id": fields["correlation_id"],
             "schema_version": fields["schema_version"],
+            "project_id": fields["project_id"],
             "payload": payload,
         })
 
@@ -30,13 +31,12 @@ async def persist_messages(messages: list[tuple[str, dict]]):
                 insert(Event)
                 .values(rows)
                 .on_conflict_do_nothing(
-                    index_elements=["event_id"]
+                    constraint="uq_events_project_event_id"
                 )
 
             )
             
             await db.execute(stmt)
-
 
 async def acknowledge_messages(r: redis.Redis, message_ids: list[str]):
     await r.xack(
@@ -45,13 +45,11 @@ async def acknowledge_messages(r: redis.Redis, message_ids: list[str]):
         *message_ids,
     )
 
-
 async def create_consumer_group(r: redis.Redis):
     try:
         await r.xgroup_create(settings.stream_key, groupname=settings.consumer_group, id="0", mkstream=True)
     except redis.ResponseError as e:
         print(f"raised: {e}")
-
 
 async def worker_manager(r: redis.Redis):
     tasks = []
@@ -72,7 +70,6 @@ async def worker_manager(r: redis.Redis):
         await asyncio.gather(*tasks, return_exceptions=True)
         
         raise
-
 
 async def worker(r: redis.Redis, worker_name: str):
     # keep time of last message recovery op

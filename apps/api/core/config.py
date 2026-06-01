@@ -1,6 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     database_url: str
     debug: bool = False
@@ -9,6 +8,9 @@ class Settings(BaseSettings):
     stream_key: str = "events"
     consumer_group: str = "analytics-ingestors"
     num_workers: int = 5
+
+    supported_event_schema_versions: set[str] = {"1.0.0"}
+    max_event_body_bytes: int = 256_000
 
     model_config = SettingsConfigDict(
         env_file=".env",
