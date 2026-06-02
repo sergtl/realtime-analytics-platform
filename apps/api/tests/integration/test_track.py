@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 import pytest
-from sqlalchemy import insert
 
 from core.security import generate_api_key
 from db.models import ApiKey, Project
