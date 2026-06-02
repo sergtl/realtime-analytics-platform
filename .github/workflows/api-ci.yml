@@ -23,4 +23,5 @@ jobs:
       - run: uv sync --dev
 
       - run: uv run ruff check .
-      - run: uv run pytest
+      - run: uv run pytest tests/unit
+      - run: ./scripts/test-integration.sh tests/integration
