@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     stream_key: str = "events"
     consumer_group: str = "analytics-ingestors"
     num_workers: int = 5
+    redis_url: str = "redis://localhost:6379/0"
 
     supported_event_schema_versions: set[str] = {"1.0.0"}
     max_event_body_bytes: int = 256_000

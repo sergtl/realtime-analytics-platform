@@ -17,7 +17,7 @@ def get_redis(request: Request) -> redis.Redis:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.redis = redis.Redis(decode_responses=True)
+    app.state.redis = redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
     yield
 
