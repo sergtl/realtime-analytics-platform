@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from asgi_lifespan import LifespanManager
 
@@ -90,11 +91,6 @@ async def test_track_with_revoked_api_key_returns_401():
 
 @pytest.mark.anyio
 async def test_track_with_valid_api_key_enqueues_event():
-    # 1. create project
-    # 2. create api key
-    # 3. run /track with valid api key
-    # 4. confirm it returns 200 and event is enqueued
-
     raw_key, prefix, key_hash = generate_api_key()
 
     async with AsyncSessionLocal() as db:
@@ -145,3 +141,92 @@ async def test_track_with_valid_api_key_enqueues_event():
             assert stored_id == message_id
             assert fields["event_type"] == "button.clicked"
             assert fields["project_id"] == str(project.id)
+
+
+@pytest.mark.anyio
+async def test_track_with_unsupported_schema_version():
+    raw_key, prefix, key_hash = generate_api_key()
+
+    async with AsyncSessionLocal() as db:
+        project = Project(name="Test Project", slug="test-project-schema-version")
+        db.add(project)
+        await db.flush()
+
+        api_key = ApiKey(
+            project_id=project.id,
+            name="Valid test key",
+            prefix=prefix,
+            key_hash=key_hash,
+        )
+        db.add(api_key)
+        await db.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/track",
+            json={
+                "event_type": "button.clicked",
+                "source": "web-app",
+                "schema_version": "2.0.0",
+                "payload": {"button_id": "signup_button"},
+            },
+            headers={"Authorization": f"Bearer {raw_key}"},
+        )
+
+    assert response.status_code == 422
+    
+
+@pytest.mark.anyio
+async def test_track_with_unknown_fields():
+    raw_key, prefix, key_hash = generate_api_key()
+
+    async with AsyncSessionLocal() as db:
+        project = Project(name="Test Project", slug="test-project-unknown-request-fields")
+        db.add(project)
+        await db.flush()
+
+        api_key = ApiKey(
+            project_id=project.id,
+            name="Valid test key",
+            prefix=prefix,
+            key_hash=key_hash,
+        )
+        db.add(api_key)
+        await db.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/track",
+            json={
+                "event_type": "button.clicked",
+                "source": "web-app",
+                "payload": {"button_id": "signup_button"},
+                "project_id": "fake project id from the client side",
+            },
+            headers={"Authorization": f"Bearer {raw_key}"},
+        )
+
+    assert response.status_code == 422
+
+
+def test_track_with_oversized_body():
+    client = TestClient(app)
+
+    body = json.dumps({
+        "event_type": "button.clicked",
+        "source": "web-app",
+        "payload": {
+            "large": "x" * (settings.max_event_body_bytes + 1),
+        },
+    })
+
+    response = client.post(
+        "/track",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert len(body.encode("utf-8")) > settings.max_event_body_bytes
+    assert response.status_code == 413
+    assert response.json() == {"detail": "Request body too large"}
+
