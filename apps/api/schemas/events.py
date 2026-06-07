@@ -2,7 +2,9 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
 class BaseEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -22,3 +24,22 @@ class BaseEvent(BaseModel):
         return value
 
     payload: dict[str, Any]
+
+
+class EventResponse(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: UUID
+    event_type: str
+    timestamp: datetime
+    source: str
+    correlation_id: UUID
+    schema_version: str
+    payload: dict[str, Any]
+    project_id: UUID
+
+
+class EventsPageResponse(BaseModel):
+    events: list[EventResponse]
+    next_cursor: int | None

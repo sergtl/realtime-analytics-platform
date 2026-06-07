@@ -72,7 +72,9 @@ async def test_track_with_revoked_api_key_returns_401():
         db.add(api_key)
         await db.commit()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         response = await ac.post(
             "/track",
             json={
@@ -87,7 +89,7 @@ async def test_track_with_revoked_api_key_returns_401():
 
         assert response.status_code == 401
         assert response.json() == {"detail": "Invalid API key"}
-    
+
 
 @pytest.mark.anyio
 async def test_track_with_valid_api_key_enqueues_event():
@@ -111,9 +113,11 @@ async def test_track_with_valid_api_key_enqueues_event():
 
         db.add(api_key)
         await db.commit()
-    
+
     async with LifespanManager(app):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.post(
                 "/track",
                 json={
@@ -132,7 +136,9 @@ async def test_track_with_valid_api_key_enqueues_event():
 
             message_id = response.json()["id"]
 
-            entries = await redis_client.xrange(settings.stream_key, min=message_id, max=message_id)
+            entries = await redis_client.xrange(
+                settings.stream_key, min=message_id, max=message_id
+            )
 
             assert len(entries) == 1
 
@@ -161,7 +167,9 @@ async def test_track_with_unsupported_schema_version():
         db.add(api_key)
         await db.commit()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         response = await ac.post(
             "/track",
             json={
@@ -174,14 +182,16 @@ async def test_track_with_unsupported_schema_version():
         )
 
     assert response.status_code == 422
-    
+
 
 @pytest.mark.anyio
 async def test_track_with_unknown_fields():
     raw_key, prefix, key_hash = generate_api_key()
 
     async with AsyncSessionLocal() as db:
-        project = Project(name="Test Project", slug="test-project-unknown-request-fields")
+        project = Project(
+            name="Test Project", slug="test-project-unknown-request-fields"
+        )
         db.add(project)
         await db.flush()
 
@@ -194,7 +204,9 @@ async def test_track_with_unknown_fields():
         db.add(api_key)
         await db.commit()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         response = await ac.post(
             "/track",
             json={
@@ -212,13 +224,15 @@ async def test_track_with_unknown_fields():
 def test_track_with_oversized_body():
     client = TestClient(app)
 
-    body = json.dumps({
-        "event_type": "button.clicked",
-        "source": "web-app",
-        "payload": {
-            "large": "x" * (settings.max_event_body_bytes + 1),
-        },
-    })
+    body = json.dumps(
+        {
+            "event_type": "button.clicked",
+            "source": "web-app",
+            "payload": {
+                "large": "x" * (settings.max_event_body_bytes + 1),
+            },
+        }
+    )
 
     response = client.post(
         "/track",
@@ -229,4 +243,3 @@ def test_track_with_oversized_body():
     assert len(body.encode("utf-8")) > settings.max_event_body_bytes
     assert response.status_code == 413
     assert response.json() == {"detail": "Request body too large"}
-

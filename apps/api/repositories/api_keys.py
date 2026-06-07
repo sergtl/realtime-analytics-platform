@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import ApiKey
 
+
 async def get_active_api_key_by_hash(db: AsyncSession, key_hash: str) -> ApiKey | None:
     stmt = select(ApiKey).where(
         ApiKey.key_hash == key_hash,

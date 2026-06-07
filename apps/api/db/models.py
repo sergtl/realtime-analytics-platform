@@ -2,10 +2,20 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, String, UUID as PG_UUID, Index, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Identity,
+    String,
+    UUID as PG_UUID,
+    Index,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 
 from db.database import Base
+
 
 class Event(Base):
     __tablename__ = "events"
