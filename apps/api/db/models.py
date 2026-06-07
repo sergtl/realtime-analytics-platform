@@ -221,6 +221,7 @@ class User(Base):
     )
 
     memberships: Mapped[list["ProjectMembership"]] = relationship(back_populates="user")
+    sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
 
 class ProjectMembership(Base):
@@ -253,3 +254,45 @@ class ProjectMembership(Base):
 
     user: Mapped["User"] = relationship(back_populates="memberships")
     project: Mapped["Project"] = relationship(back_populates="memberships")
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger(),
+        ForeignKey("users.id", name="fk_sessions_user", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    token_hash: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+        unique=True, # this already creates an index. we need that bc every authenticated req will hit the db
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
