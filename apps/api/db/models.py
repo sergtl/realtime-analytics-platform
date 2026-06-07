@@ -129,6 +129,9 @@ class Project(Base):
     # orm rel attributes for convenience
     events: Mapped[list["Event"]] = relationship(back_populates="project")
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="project")
+    memberships: Mapped[list["ProjectMembership"]] = relationship(
+        back_populates="project"
+    )
 
 
 class ApiKey(Base):
@@ -181,3 +184,72 @@ class ApiKey(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(
+        BigInteger(),
+        Identity(),
+        primary_key=True,
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(320),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    password_hash: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    memberships: Mapped[list["ProjectMembership"]] = relationship(back_populates="user")
+
+
+class ProjectMembership(Base):
+    __tablename__ = "project_memberships"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger(),
+        ForeignKey("users.id", name="fk_project_memberships_user", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", name="fk_project_memberships_project", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+
+    role: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    user: Mapped["User"] = relationship(back_populates="memberships")
+    project: Mapped["Project"] = relationship(back_populates="memberships")

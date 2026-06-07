@@ -29,14 +29,13 @@ async def query_events(
 
     if from_date is not None:
         stmt = stmt.where(Event.timestamp >= from_date)
-    
+
     if to_date is not None:
         stmt = stmt.where(Event.timestamp <= to_date)
 
     if cursor is not None:
         stmt = stmt.where(Event.id < cursor)
-    
+
     result = await db.execute(stmt)
 
     return list(result.scalars().all())
-

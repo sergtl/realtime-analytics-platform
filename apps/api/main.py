@@ -59,7 +59,7 @@ async def get_project_events(
     from_date: Annotated[datetime | None, Query(alias="from")] = None,
     to_date: Annotated[datetime | None, Query(alias="to")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    cursor: int | None = None
+    cursor: int | None = None,
 ):
     events = await query_events(
         db=db,
