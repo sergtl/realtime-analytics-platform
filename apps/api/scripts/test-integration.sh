@@ -11,6 +11,7 @@ cleanup() {
 
 trap cleanup EXIT
 
+cleanup
 docker compose -f "$COMPOSE_FILE" up -d
 
 until docker compose -f "$COMPOSE_FILE" exec -T postgres pg_isready -U sergei -d rpap_test; do

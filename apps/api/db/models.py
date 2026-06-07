@@ -236,7 +236,9 @@ class ProjectMembership(Base):
 
     project_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("projects.id", name="fk_project_memberships_project", ondelete="CASCADE"),
+        ForeignKey(
+            "projects.id", name="fk_project_memberships_project", ondelete="CASCADE"
+        ),
         nullable=False,
         primary_key=True,
     )
@@ -275,7 +277,7 @@ class Session(Base):
     token_hash: Mapped[str] = mapped_column(
         String(256),
         nullable=False,
-        unique=True, # this already creates an index. we need that bc every authenticated req will hit the db
+        unique=True,  # this already creates an index. we need that bc every authenticated req will hit the db
     )
 
     created_at: Mapped[datetime] = mapped_column(

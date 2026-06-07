@@ -1,11 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, HTTPException, Header, Request, status
 
-from core.security import hash_api_key
+from repositories.auth import get_active_session_by_token_hash, get_user_by_id
+from core.security import hash_secret
 from repositories.api_keys import get_active_api_key_by_hash
-from db.models import ApiKey
+from db.models import ApiKey, Session, User
 from db.session import get_db
 
 
@@ -27,7 +28,7 @@ async def require_api_key(
             detail="Invalid authorization header",
         )
 
-    key_hash = hash_api_key(raw_key)
+    key_hash = hash_secret(raw_key)
     api_key = await get_active_api_key_by_hash(db, key_hash)
 
     if api_key is None:
@@ -37,3 +38,65 @@ async def require_api_key(
         )
 
     return api_key
+
+
+async def require_current_user(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
+    raw_session = request.cookies.get("session")
+
+    if not raw_session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    token_hash = hash_secret(raw_session)
+
+    active_session = await get_active_session_by_token_hash(
+        db=db, token_hash=token_hash
+    )
+
+    if not active_session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    user = await get_user_by_id(db=db, user_id=active_session.user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    return user
+
+
+async def require_current_session(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Session:
+    raw_session = request.cookies.get("session")
+
+    if not raw_session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    token_hash = hash_secret(raw_session)
+
+    active_session = await get_active_session_by_token_hash(
+        db=db, token_hash=token_hash
+    )
+
+    if not active_session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    return active_session
