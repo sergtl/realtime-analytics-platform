@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     supported_event_schema_versions: set[str] = {"1.0.0"}
     max_event_body_bytes: int = 256_000
 
+    cors_origins: list[str] = ["http://localhost:3000"]
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
