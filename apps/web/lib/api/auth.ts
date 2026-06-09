@@ -17,6 +17,16 @@ export function login(input: AuthenticateRequest) {
   });
 }
 
+export type LogoutResponse = {
+  ok: boolean;
+};
+
+export function logout() {
+  return api<LogoutResponse>("/auth/logout", {
+    method: "POST",
+  });
+}
+
 export function register(input: AuthenticateRequest) {
   return api<AuthUser>("/auth/register", {
     method: "POST",
