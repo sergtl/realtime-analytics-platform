@@ -4,17 +4,16 @@ An event analytics platform for collecting product events, storing them by
 project, and exposing authenticated dashboard APIs for querying activity,
 metrics, and API key management.
 
-The repo is currently focused on the backend foundation: event ingestion,
-project-scoped API keys, user authentication, project access control, query
-APIs, and integration tests. The web app scaffold exists and will consume these
-APIs.
+The repo is currently focused on the backend foundation and the first dashboard
+UI: event ingestion, project-scoped API keys, user authentication, project
+access control, query APIs, and integration tests.
 
 ## Project Structure
 
 ```text
 apps/
   api/        FastAPI backend, worker, database models, migrations, tests
-  web/        Next.js frontend scaffold
+  web/        Next.js dashboard UI
 ```
 
 Backend layout:
@@ -32,6 +31,29 @@ apps/api/
   worker.py               Redis stream consumer that persists events
   tests/integration/      Docker-backed integration tests
 ```
+
+Frontend layout:
+
+```text
+apps/web/
+  app/                    Next.js App Router pages and layouts
+  app/(app)/              Authenticated dashboard route group
+  components/             Reusable UI and form components
+  hooks/                  TanStack Query hooks
+  lib/api/                Plain API request functions
+  proxy.ts                Optimistic route guard based on session cookie
+```
+
+## Product Architecture
+
+The platform has three product surfaces:
+
+- **Backend:** receives events, stores data, enforces auth/access, and exposes
+  dashboard APIs.
+- **Dashboard UI:** lets users register, log in, manage projects/API keys, and
+  view analytics.
+- **Client SDK:** future package that users install in their own product to
+  send events to `POST /track`.
 
 ## Backend Architecture
 
@@ -71,6 +93,10 @@ creating or revoking project API keys, require an owner/admin membership.
 Session tokens and API keys are only stored as hashes in the database. Raw API
 keys are returned once when created.
 
+The dashboard frontend uses an optimistic Next.js `proxy.ts` guard for page
+navigation, but the FastAPI backend remains the source of truth for session and
+project authorization.
+
 ## Main API Areas
 
 - `POST /auth/register`
@@ -101,6 +127,12 @@ Run the API:
 
 ```bash
 pnpm dev:api
+```
+
+Run the web app:
+
+```bash
+pnpm dev:web
 ```
 
 Run tests:
@@ -136,4 +168,5 @@ The integration suite covers:
 ## Status
 
 The backend currently provides authenticated project, event query, metrics, and
-API key management APIs. The frontend is still a scaffold.
+API key management APIs. The frontend has auth screens and the protected app
+layout started.
