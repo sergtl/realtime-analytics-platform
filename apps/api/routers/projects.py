@@ -6,14 +6,31 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.security import generate_api_key
+from repositories.api_keys import (
+    create_project_api_key,
+    get_project_api_key,
+    get_project_api_keys as get_project_api_keys_from_db,
+    revoke_api_key,
+)
 from repositories.projects import (
     create_project_with_owner,
     generate_unique_project_slug,
     get_user_projects,
 )
-from schemas.projects import CreateProjectRequest, ProjectResponse
+from schemas.projects import (
+    ApiKeyResponse,
+    CreateApiKeyRequest,
+    CreateApiKeyResponse,
+    CreateProjectRequest,
+    ProjectResponse,
+)
 from db.models import ProjectMembership, User
-from dependencies.auth import require_current_user, require_project_access
+from dependencies.auth import (
+    require_current_user,
+    require_project_access,
+    require_project_admin,
+)
 from db.session import get_db
 from repositories.events import query_events
 from repositories.events import (
@@ -181,3 +198,67 @@ async def create_project(
         ) from exc
 
     return project
+
+
+@router.get(
+    "/{project_id}/api-keys",
+    response_model=list[ApiKeyResponse],
+)
+async def get_project_api_keys(
+    project_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _membership: Annotated[ProjectMembership, Depends(require_project_access)],
+):
+    api_keys = await get_project_api_keys_from_db(db=db, project_id=project_id)
+    return api_keys
+
+
+@router.post(
+    "/{project_id}/api-keys",
+    response_model=CreateApiKeyResponse,
+)
+async def add_project_api_key(
+    project_id: UUID,
+    create_api_key_request: CreateApiKeyRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _membership: Annotated[ProjectMembership, Depends(require_project_admin)],
+):
+    raw_key, prefix, key_hash = generate_api_key()
+
+    api_key = await create_project_api_key(
+        db=db,
+        project_id=project_id,
+        name=create_api_key_request.name,
+        prefix=prefix,
+        key_hash=key_hash,
+    )
+
+    return CreateApiKeyResponse(
+        api_key=ApiKeyResponse.model_validate(api_key),
+        raw_key=raw_key,
+    )
+
+
+@router.post(
+    "/{project_id}/api-keys/{api_key_id}/revoke",
+    response_model=ApiKeyResponse,
+)
+async def revoke_project_api_key(
+    project_id: UUID,
+    api_key_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _membership: Annotated[ProjectMembership, Depends(require_project_admin)],
+):
+    api_key = await get_project_api_key(
+        db=db,
+        project_id=project_id,
+        api_key_id=api_key_id,
+    )
+
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+
+    return await revoke_api_key(db=db, api_key=api_key)

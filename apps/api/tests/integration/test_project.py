@@ -5,7 +5,7 @@ from uuid import uuid4
 from httpx import ASGITransport, AsyncClient
 import pytest
 from sqlalchemy import select
-from db.models import Event, ProjectMembership
+from db.models import ApiKey, Event, ProjectMembership
 from core.security import hash_password
 from repositories.auth import create_user
 from repositories.projects import (
@@ -100,6 +100,24 @@ async def create_project_with_test_events(
         ]
         db.add_all(events)
         await db.commit()
+
+        return project.id
+
+
+async def create_project_for_user(email: str, raw_password: str):
+    async with AsyncSessionLocal() as db:
+        user = await create_user(
+            db=db,
+            email=email,
+            password_hash=hash_password(raw_password),
+        )
+        slug = await generate_unique_project_slug(db=db, name="API Key Project")
+        project = await create_project_with_owner(
+            db=db,
+            name="API Key Project",
+            slug=slug,
+            user_id=user.id,
+        )
 
         return project.id
 
@@ -364,6 +382,141 @@ async def test_project_metrics_for_other_users_project_returns_403():
         await login_test_user(ac, email=other_email, raw_password=raw_password)
 
         response = await ac.get(f"/projects/{project_id}/metrics/overview")
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Forbidden"}
+
+
+@pytest.mark.anyio
+async def test_project_api_keys_create_returns_raw_key_once():
+    email = "api-key-create@test.com"
+    raw_password = "12345"
+    project_id = await create_project_for_user(
+        email=email,
+        raw_password=raw_password,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(ac, email=email, raw_password=raw_password)
+
+        response = await ac.post(
+            f"/projects/{project_id}/api-keys",
+            json={"name": "Production key"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["raw_key"].startswith("ap_live_")
+    assert body["api_key"]["name"] == "Production key"
+    assert body["api_key"]["prefix"] == body["raw_key"][:16]
+    assert "key_hash" not in body["api_key"]
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ApiKey).where(ApiKey.id == UUID(body["api_key"]["id"]))
+        )
+        api_key = result.scalar_one()
+
+    assert api_key.project_id == project_id
+    assert api_key.key_hash != body["raw_key"]
+
+
+@pytest.mark.anyio
+async def test_project_api_keys_list_returns_metadata_without_raw_key():
+    email = "api-key-list@test.com"
+    raw_password = "12345"
+    project_id = await create_project_for_user(
+        email=email,
+        raw_password=raw_password,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(ac, email=email, raw_password=raw_password)
+
+        create_response = await ac.post(
+            f"/projects/{project_id}/api-keys",
+            json={"name": "Listable key"},
+        )
+        list_response = await ac.get(f"/projects/{project_id}/api-keys")
+
+    assert create_response.status_code == 200
+    assert list_response.status_code == 200
+
+    api_keys = list_response.json()
+    assert len(api_keys) == 1
+    assert api_keys[0]["id"] == create_response.json()["api_key"]["id"]
+    assert api_keys[0]["name"] == "Listable key"
+    assert "raw_key" not in api_keys[0]
+    assert "key_hash" not in api_keys[0]
+
+
+@pytest.mark.anyio
+async def test_project_api_keys_revoke_marks_key_revoked_and_blocks_tracking():
+    email = "api-key-revoke@test.com"
+    raw_password = "12345"
+    project_id = await create_project_for_user(
+        email=email,
+        raw_password=raw_password,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(ac, email=email, raw_password=raw_password)
+
+        create_response = await ac.post(
+            f"/projects/{project_id}/api-keys",
+            json={"name": "Revoked key"},
+        )
+        created_api_key = create_response.json()
+
+        revoke_response = await ac.post(
+            f"/projects/{project_id}/api-keys/{created_api_key['api_key']['id']}/revoke"
+        )
+
+        track_response = await ac.post(
+            "/track",
+            json={
+                "event_type": "button.clicked",
+                "source": "web-app",
+                "payload": {"button_id": "signup_button"},
+            },
+            headers={
+                "Authorization": f"Bearer {created_api_key['raw_key']}",
+            },
+        )
+
+    assert create_response.status_code == 200
+    assert revoke_response.status_code == 200
+    assert revoke_response.json()["revoked_at"] is not None
+    assert track_response.status_code == 401
+    assert track_response.json() == {"detail": "Invalid API key"}
+
+
+@pytest.mark.anyio
+async def test_project_api_keys_for_other_users_project_returns_403():
+    owner_email = "api-key-owner@test.com"
+    other_email = "api-key-outsider@test.com"
+    raw_password = "12345"
+    project_id = await create_project_for_user(
+        email=owner_email,
+        raw_password=raw_password,
+    )
+    await create_test_user(email=other_email, raw_password=raw_password)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(ac, email=other_email, raw_password=raw_password)
+
+        response = await ac.post(
+            f"/projects/{project_id}/api-keys",
+            json={"name": "Forbidden key"},
+        )
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Forbidden"}

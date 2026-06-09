@@ -123,3 +123,15 @@ async def require_project_access(
         )
 
     return membership
+
+
+async def require_project_admin(
+    membership: Annotated[ProjectMembership, Depends(require_project_access)],
+) -> ProjectMembership:
+    if membership.role not in {"owner", "admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden",
+        )
+
+    return membership
