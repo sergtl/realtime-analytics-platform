@@ -14,7 +14,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import { useLogout } from "@/hooks/use-logout";
 import { CircleUser, EllipsisVertical, LogOut } from "lucide-react";
