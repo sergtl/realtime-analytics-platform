@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -43,3 +44,30 @@ class EventResponse(BaseModel):
 class EventsPageResponse(BaseModel):
     events: list[EventResponse]
     next_cursor: int | None
+
+
+class EventTypeResponse(BaseModel):
+    event_type: str
+    count: int
+
+
+class EventMetricsOverviewResponse(BaseModel):
+    total_events: int
+    unique_event_types: int
+    first_event_at: datetime | None
+    latest_event_at: datetime | None
+
+
+class TimeseriesInterval(StrEnum):
+    hour = "hour"
+    day = "day"
+
+
+class EventTimeseriesPointResponse(BaseModel):
+    timestamp: datetime
+    count: int
+
+
+class EventTimeseriesResponse(BaseModel):
+    interval: TimeseriesInterval
+    points: list[EventTimeseriesPointResponse]

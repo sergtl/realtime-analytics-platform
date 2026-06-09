@@ -1,12 +1,15 @@
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Header, Request, status
 
+from repositories.projects import get_project_membership
 from repositories.auth import get_active_session_by_token_hash, get_user_by_id
 from core.security import hash_secret
 from repositories.api_keys import get_active_api_key_by_hash
-from db.models import ApiKey, Session, User
+from db.models import ApiKey, ProjectMembership, Session, User
 from db.session import get_db
 
 
@@ -100,3 +103,23 @@ async def require_current_session(
         )
 
     return active_session
+
+
+async def require_project_access(
+    project_id: UUID,
+    current_user: Annotated[User, Depends(require_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProjectMembership:
+    membership = await get_project_membership(
+        db=db,
+        project_id=project_id,
+        user_id=current_user.id,
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden",
+        )
+
+    return membership
