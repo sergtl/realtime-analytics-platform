@@ -14,6 +14,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useLogout } from "@/hooks/use-logout";
 import { CircleUser, EllipsisVertical, LogOut } from "lucide-react";
@@ -26,6 +27,7 @@ export function NavUser({
     email: string;
   };
 }) {
+  const { isMobile } = useSidebar();
   const router = useRouter();
 
   const { mutate } = useLogout({
@@ -60,6 +62,7 @@ export function NavUser({
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             align="end"
             sideOffset={4}
+            side={isMobile ? "bottom" : "right"}
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
