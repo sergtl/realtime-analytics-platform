@@ -23,3 +23,7 @@ export function register(input: AuthenticateRequest) {
     body: JSON.stringify(input),
   });
 }
+
+export function me() {
+  return api<AuthUser>("/auth/me");
+}
