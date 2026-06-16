@@ -45,11 +45,7 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-              variant={"outline"}
-            >
+            <SidebarMenuButton size="lg" variant={"outline"}>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate text-xs text-muted-foreground">
                   {user.email}
@@ -59,12 +55,11 @@ export function NavUser({
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             align="end"
             sideOffset={4}
             side={isMobile ? "bottom" : "right"}
           >
-            <DropdownMenuLabel className="p-0 font-normal">
+            <DropdownMenuLabel>
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate text-xs text-muted-foreground">

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Geist, Geist_Mono } from "next/font/google";
+
 import "./globals.css";
 import { TanstackProvider } from "./TanstackProvider";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +33,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <TanstackProvider>
-          <TooltipProvider>{children}</TooltipProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </TanstackProvider>
       </body>
     </html>

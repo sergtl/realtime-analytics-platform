@@ -16,11 +16,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (hasSession && isPublicRoute) {
-    const appUrl = new URL("/", request.url);
-    return NextResponse.redirect(appUrl);
-  }
-
   return NextResponse.next();
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { CreateProjectSheet } from "@/components/create-project-sheet";
 import {
   SidebarInset,
   SidebarProvider,
@@ -8,7 +9,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useMe } from "@/hooks/use-me";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function AppRootLayout({
   children,
@@ -16,11 +17,20 @@ export default function AppRootLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const { data: user, isLoading, isError } = useMe();
 
   useEffect(() => {
     if (isError) {
-      router.replace("/login");
+      async function clearSessionAndRedirect() {
+        await fetch("/api/auth/session", {
+          method: "DELETE",
+        });
+
+        router.replace("/login");
+      }
+
+      void clearSessionAndRedirect();
     }
   }, [isError, router]);
 
@@ -34,7 +44,11 @@ export default function AppRootLayout({
 
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar onCreateProjectClick={() => setIsCreateProjectOpen(true)} />
+      <CreateProjectSheet
+        open={isCreateProjectOpen}
+        onOpenChange={setIsCreateProjectOpen}
+      />
 
       <SidebarInset>
         <header className="flex h-12 items-center px-4">
