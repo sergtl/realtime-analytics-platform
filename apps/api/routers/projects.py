@@ -16,6 +16,7 @@ from repositories.api_keys import (
 from repositories.projects import (
     create_project_with_owner,
     generate_unique_project_slug,
+    get_user_project,
     get_user_projects,
 )
 from schemas.projects import (
@@ -62,6 +63,22 @@ async def get_projects(
 ):
     projects = await get_user_projects(db=db, user_id=user.id)
     return projects
+
+
+@router.get("/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: UUID,
+    user: Annotated[User, Depends(require_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    project = await get_user_project(db=db, project_id=project_id, user_id=user.id)
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    return project
 
 
 @router.get(

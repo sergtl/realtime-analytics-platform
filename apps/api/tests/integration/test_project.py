@@ -104,22 +104,37 @@ async def create_project_with_test_events(
         return project.id
 
 
-async def create_project_for_user(email: str, raw_password: str):
+async def create_project_for_user(
+    email: str, raw_password: str, project_name: str = "API Key Project"
+):
     async with AsyncSessionLocal() as db:
         user = await create_user(
             db=db,
             email=email,
             password_hash=hash_password(raw_password),
         )
-        slug = await generate_unique_project_slug(db=db, name="API Key Project")
+        slug = await generate_unique_project_slug(db=db, name=project_name)
         project = await create_project_with_owner(
             db=db,
-            name="API Key Project",
+            name=project_name,
             slug=slug,
             user_id=user.id,
         )
 
-        return project.id
+        return project.id, project.name, project.slug
+
+
+async def create_project_for_existing_user(user_id: int, project_name: str):
+    async with AsyncSessionLocal() as db:
+        slug = await generate_unique_project_slug(db=db, name=project_name)
+        project = await create_project_with_owner(
+            db=db,
+            name=project_name,
+            slug=slug,
+            user_id=user_id,
+        )
+
+        return project.id, project.name, project.slug
 
 
 @pytest.mark.anyio
@@ -391,7 +406,7 @@ async def test_project_metrics_for_other_users_project_returns_403():
 async def test_project_api_keys_create_returns_raw_key_once():
     email = "api-key-create@test.com"
     raw_password = "12345"
-    project_id = await create_project_for_user(
+    project_id, _, _ = await create_project_for_user(
         email=email,
         raw_password=raw_password,
     )
@@ -427,7 +442,7 @@ async def test_project_api_keys_create_returns_raw_key_once():
 async def test_project_api_keys_list_returns_metadata_without_raw_key():
     email = "api-key-list@test.com"
     raw_password = "12345"
-    project_id = await create_project_for_user(
+    project_id, _, _ = await create_project_for_user(
         email=email,
         raw_password=raw_password,
     )
@@ -458,7 +473,7 @@ async def test_project_api_keys_list_returns_metadata_without_raw_key():
 async def test_project_api_keys_revoke_marks_key_revoked_and_blocks_tracking():
     email = "api-key-revoke@test.com"
     raw_password = "12345"
-    project_id = await create_project_for_user(
+    project_id, _, _ = await create_project_for_user(
         email=email,
         raw_password=raw_password,
     )
@@ -502,7 +517,7 @@ async def test_project_api_keys_for_other_users_project_returns_403():
     owner_email = "api-key-owner@test.com"
     other_email = "api-key-outsider@test.com"
     raw_password = "12345"
-    project_id = await create_project_for_user(
+    project_id, _, _ = await create_project_for_user(
         email=owner_email,
         raw_password=raw_password,
     )
@@ -520,3 +535,110 @@ async def test_project_api_keys_for_other_users_project_returns_403():
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Forbidden"}
+
+
+@pytest.mark.anyio
+async def test_get_project_returns_project_for_member():
+    email = "user-with-project@test.com"
+    raw_password = "12345"
+
+    project_id, project_name, project_slug = await create_project_for_user(
+        email=email, raw_password=raw_password, project_name="Member project"
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(ac, email=email, raw_password=raw_password)
+
+        response = await ac.get(
+            f"/projects/{project_id}",
+        )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["id"] == str(project_id)
+    assert body["name"] == project_name
+    assert body["slug"] == project_slug
+
+
+@pytest.mark.anyio
+async def test_get_project_requires_authentication():
+    email = "user-to-create-project@test.com"
+    raw_password = "12345"
+
+    project_id, project_name, project_slug = await create_project_for_user(
+        email=email, raw_password=raw_password, project_name="Member project"
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        response = await ac.get(
+            f"/projects/{project_id}",
+        )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_get_project_for_non_member_returns_404():
+    owner_email = "project-owner-1@test.com"
+    owner_raw_password = "12345"
+
+    project_id, _, _ = await create_project_for_user(
+        email=owner_email, raw_password=owner_raw_password, project_name="Demo project"
+    )
+
+    other_user_email = "not-project-owner@test.com"
+    other_user_raw_password = "not_owner123"
+
+    await create_test_user(email=other_user_email, raw_password=other_user_raw_password)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(
+            ac, email=other_user_email, raw_password=other_user_raw_password
+        )
+
+        response = await ac.get(
+            f"/projects/{project_id}",
+        )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_project_returns_correct_one():
+    email = "owner-of-many-projects@test.com"
+    raw_password = "12345"
+
+    user = await create_test_user(email=email, raw_password=raw_password)
+
+    _, _, _ = await create_project_for_existing_user(
+        user_id=user.id, project_name="Project 1"
+    )
+    project_id, project_name, project_slug = await create_project_for_existing_user(
+        user_id=user.id, project_name="Project 2"
+    )
+    _, _, _ = await create_project_for_existing_user(
+        user_id=user.id, project_name="Project 3"
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        await login_test_user(ac, email=email, raw_password=raw_password)
+
+        response = await ac.get(
+            f"/projects/{project_id}",
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(project_id)
+    assert body["name"] == project_name
+    assert body["slug"] == project_slug

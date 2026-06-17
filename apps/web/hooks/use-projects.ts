@@ -1,8 +1,10 @@
 import {
   createProject,
+  CreateProjectRequest,
+  getProject,
+  getProjectMetricsOverview,
   getProjects,
   Project,
-  CreateProjectRequest,
 } from "@/lib/api/projects";
 import {
   useMutation,
@@ -15,6 +17,21 @@ export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
     queryFn: getProjects,
+  });
+}
+
+export function useProject(projectId: string) {
+  return useQuery({
+    queryKey: ["projects", projectId],
+    queryFn: () => getProject(projectId),
+  });
+}
+
+export function useProjectMetricsOverview(projectId: string) {
+  return useQuery({
+    queryKey: ["projects", projectId, "metrics-overview"],
+    queryFn: () => getProjectMetricsOverview(projectId),
+    enabled: projectId.length > 0,
   });
 }
 

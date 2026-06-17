@@ -12,6 +12,17 @@ export type CreateProjectRequest = {
   name: string;
 };
 
+export type ProjectMetricsOverview = {
+  total_events: number;
+  unique_event_types: number;
+  first_event_at: string | null;
+  latest_event_at: string | null;
+};
+
+export function getProject(projectId: string) {
+  return api<Project>(`/projects/${projectId}`);
+}
+
 export function getProjects() {
   return api<Project[]>("/projects");
 }
@@ -21,4 +32,8 @@ export function createProject(input: CreateProjectRequest) {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function getProjectMetricsOverview(projectId: string) {
+  return api<ProjectMetricsOverview>(`/projects/${projectId}/metrics/overview`);
 }

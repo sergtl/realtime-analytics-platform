@@ -31,6 +31,23 @@ async def get_user_projects(db: AsyncSession, user_id: int) -> list[Project]:
     return list(result.scalars().all())
 
 
+async def get_user_project(
+    db: AsyncSession, project_id: UUID, user_id: UUID
+) -> Project | None:
+    stmt = (
+        select(Project)
+        .join(ProjectMembership, ProjectMembership.project_id == Project.id)
+        .where(
+            Project.id == project_id,
+            ProjectMembership.user_id == user_id,
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    return result.scalar_one_or_none()
+
+
 async def create_project_with_owner(
     db: AsyncSession, name: str, slug: str, user_id: int
 ) -> Project:
