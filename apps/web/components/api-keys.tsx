@@ -8,12 +8,33 @@ import {
   useRevokeApiKey,
 } from "@/hooks/use-api-keys";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "./ui/field";
 import { Input } from "./ui/input";
+import { Skeleton } from "./ui/skeleton";
 
 type ApiKeysProps = {
   projectId: string;
+};
+
+type RevokeCandidate = {
+  id: string;
+  name: string;
 };
 
 function formatDateTime(value: string | null) {
@@ -30,10 +51,34 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function ApiKeyListSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 2 }).map((_, index) => (
+        <Card key={index}>
+          <CardHeader className="gap-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-40" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Skeleton className="h-3 w-44" />
+            <Skeleton className="h-3 w-52" />
+            <Skeleton className="h-8 w-32" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function ApiKeys({ projectId }: ApiKeysProps) {
   const [apiKeyName, setApiKeyName] = useState("");
   const [createdRawKey, setCreatedRawKey] = useState<string | null>(null);
   const [createdApiKeyId, setCreatedApiKeyId] = useState<string | null>(null);
+  const [revokeCandidate, setRevokeCandidate] =
+    useState<RevokeCandidate | null>(null);
+  const [revokingApiKeyId, setRevokingApiKeyId] = useState<string | null>(null);
+
   const { data = [], isPending, error } = useApiKeys(projectId);
   const {
     mutate: createApiKey,
@@ -49,13 +94,13 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
   });
   const {
     mutate: revokeApiKey,
-    isPending: isRevokingApiKey,
     error: revokeApiKeyError,
   } = useRevokeApiKey(projectId, {
     onSuccess: (result) => {
       toast.success(`Revoked ${result.name}.`);
     },
   });
+
   const sortedApiKeys = useMemo(() => {
     return [...data].sort((left, right) => {
       const leftIsRevoked = left.revoked_at !== null;
@@ -70,6 +115,15 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
       );
     });
   }, [data]);
+
+  const activeApiKeys = useMemo(
+    () => sortedApiKeys.filter((apiKey) => apiKey.revoked_at === null),
+    [sortedApiKeys]
+  );
+  const revokedApiKeys = useMemo(
+    () => sortedApiKeys.filter((apiKey) => apiKey.revoked_at !== null),
+    [sortedApiKeys]
+  );
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,16 +147,34 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
     });
   }
 
-  function confirmAndRevokeApiKey(apiKeyId: string, apiKeyName: string) {
-    const confirmed = window.confirm(
-      `Revoke "${apiKeyName}"? This API key will stop working immediately.`
-    );
+  function startRevokeFlow(apiKeyId: string, apiKeyName: string) {
+    setRevokeCandidate({
+      id: apiKeyId,
+      name: apiKeyName,
+    });
+  }
 
-    if (!confirmed) {
+  function cancelRevokeFlow() {
+    if (revokingApiKeyId !== null) {
       return;
     }
 
-    revokeApiKey(apiKeyId);
+    setRevokeCandidate(null);
+  }
+
+  function confirmRevokeApiKey() {
+    if (!revokeCandidate) {
+      return;
+    }
+
+    setRevokingApiKeyId(revokeCandidate.id);
+
+    revokeApiKey(revokeCandidate.id, {
+      onSettled: () => {
+        setRevokingApiKeyId(null);
+        setRevokeCandidate(null);
+      },
+    });
   }
 
   return (
@@ -110,6 +182,9 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
       <Card>
         <CardHeader>
           <CardTitle>Create API key</CardTitle>
+          <CardDescription>
+            Use project-scoped API keys to send events into this workspace.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit}>
@@ -134,11 +209,11 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
                     <CardTitle className="text-base">
                       Copy this key now
                     </CardTitle>
+                    <CardDescription>
+                      Raw API keys are only shown once after creation.
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      This raw key is only shown once.
-                    </p>
+                  <CardContent className="space-y-3">
                     <code className="block overflow-x-auto border px-3 py-2 text-xs">
                       {createdRawKey}
                     </code>
@@ -168,7 +243,7 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
                   required
                 />
                 <FieldDescription>
-                  Give the key a name that makes its usage obvious later.
+                  Give the key a name that makes its purpose obvious later.
                 </FieldDescription>
               </Field>
 
@@ -197,6 +272,52 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
         </CardContent>
       </Card>
 
+      <Dialog
+        open={revokeCandidate !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelRevokeFlow();
+          }
+        }}
+      >
+        <DialogContent showCloseButton={revokingApiKeyId === null}>
+          <DialogHeader>
+            <DialogTitle>Revoke API key</DialogTitle>
+            <DialogDescription>
+              {revokeCandidate ? (
+                <>
+                  Revoke &quot;{revokeCandidate.name}&quot;? This key will stop
+                  working immediately, but its record will remain visible for
+                  reference.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={revokingApiKeyId !== null}
+              className="cursor-pointer"
+              onClick={confirmRevokeApiKey}
+            >
+              {revokeCandidate && revokingApiKeyId === revokeCandidate.id
+                ? "Revoking..."
+                : "Confirm revoke"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={revokingApiKeyId !== null}
+              className="cursor-pointer"
+              onClick={cancelRevokeFlow}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {error ? (
         <ErrorAlert
           title="Could not load API keys"
@@ -204,52 +325,102 @@ export function ApiKeys({ projectId }: ApiKeysProps) {
         />
       ) : null}
 
-      {isPending && <p>Api keys loading...</p>}
+      {isPending ? <ApiKeyListSkeleton /> : null}
 
-      {sortedApiKeys.map((apiKey) => (
-        <Card key={apiKey.id}>
-          <CardHeader>
-            <CardTitle>{apiKey.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>Prefix: {apiKey.prefix}</p>
-            <p>Created: {formatDateTime(apiKey.created_at)}</p>
-            <p>Last used: {formatDateTime(apiKey.last_used_at)}</p>
-            {apiKey.revoked_at ? (
-              <p>Revoked: {formatDateTime(apiKey.revoked_at)}</p>
-            ) : null}
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="cursor-pointer"
-                onClick={() => copyApiKey(apiKey.id, apiKey.prefix)}
-              >
-                Copy key
-              </Button>
-              {!apiKey.revoked_at ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={isRevokingApiKey}
-                  className="cursor-pointer"
-                  onClick={() => confirmAndRevokeApiKey(apiKey.id, apiKey.name)}
-                >
-                  {isRevokingApiKey ? "Revoking..." : "Delete key"}
-                </Button>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      {!isPending && activeApiKeys.length > 0 ? (
+        <div className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium">Active keys</h3>
+            <p className="text-sm text-muted-foreground">
+              These keys can send events to this project right now.
+            </p>
+          </div>
 
-      {!isPending && !error && data.length === 0 && (
-        <div className="gap-2 flex flex-col items-start p-2">
+          {activeApiKeys.map((apiKey) => (
+            <Card key={apiKey.id}>
+              <CardHeader>
+                <div className="space-y-1">
+                  <CardTitle>{apiKey.name}</CardTitle>
+                  <CardDescription>{apiKey.prefix}</CardDescription>
+                </div>
+                <CardAction>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={revokingApiKeyId !== null}
+                    className="cursor-pointer"
+                    onClick={() => startRevokeFlow(apiKey.id, apiKey.name)}
+                  >
+                    {revokingApiKeyId === apiKey.id
+                      ? "Revoking..."
+                      : "Revoke key"}
+                  </Button>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p>Created: {formatDateTime(apiKey.created_at)}</p>
+                <p>Last used: {formatDateTime(apiKey.last_used_at)}</p>
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => copyApiKey(apiKey.id, apiKey.prefix)}
+                  >
+                    Copy key
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+
+      {!isPending && revokedApiKeys.length > 0 ? (
+        <div className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium">Revoked keys</h3>
+            <p className="text-sm text-muted-foreground">
+              These keys no longer work, but their history is kept for
+              reference.
+            </p>
+          </div>
+
+          {revokedApiKeys.map((apiKey) => (
+            <Card key={apiKey.id} className="opacity-80">
+              <CardHeader>
+                <div className="space-y-1">
+                  <CardTitle>{apiKey.name}</CardTitle>
+                  <CardDescription>{apiKey.prefix}</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p>Created: {formatDateTime(apiKey.created_at)}</p>
+                <p>Last used: {formatDateTime(apiKey.last_used_at)}</p>
+                <p>Revoked: {formatDateTime(apiKey.revoked_at)}</p>
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => copyApiKey(apiKey.id, apiKey.prefix)}
+                  >
+                    Copy prefix
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+
+      {!isPending && !error && data.length === 0 ? (
+        <div className="flex flex-col items-start gap-2 p-2">
           <p className="pl-0.5">
-            No api keys found, create one to start tracking events.
+            No API keys found. Create one to start tracking events.
           </p>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
