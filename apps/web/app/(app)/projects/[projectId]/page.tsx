@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useProject, useProjectMetricsOverview } from "@/hooks/use-projects";
 import { Activity, FolderKanban, KeyRound, ListFilter } from "lucide-react";
+import { ApiKeys } from "@/components/api-keys";
 
 type ProjectDetailPageProps = {
   params: Promise<{
@@ -297,26 +298,7 @@ function ProjectDetailView({ projectId }: { projectId: string }) {
         </section>
       ) : null}
 
-      {activeSection === "api-keys" ? (
-        <section>
-          <Card>
-            <CardHeader>
-              <CardTitle>API keys</CardTitle>
-              <CardDescription>
-                This section will handle creating, listing, and revoking project
-                API keys.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>
-                Once this screen is wired, the project page becomes the main
-                place where users instrument their product and confirm data is
-                flowing.
-              </p>
-            </CardContent>
-          </Card>
-        </section>
-      ) : null}
+      {activeSection === "api-keys" ? <ApiKeys projectId={projectId} /> : null}
     </div>
   );
 }
