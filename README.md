@@ -106,6 +106,7 @@ project authorization.
 - `POST /track`
 - `GET /projects`
 - `POST /projects`
+- `GET /projects/{project_id}`
 - `GET /projects/{project_id}/events`
 - `GET /projects/{project_id}/event-types`
 - `GET /projects/{project_id}/metrics/overview`
@@ -116,11 +117,28 @@ project authorization.
 
 ## Development
 
-Start backend dependencies:
+Start Postgres/Redis, preserving data:
 
 ```bash
-cd apps/api
-docker compose up -d
+pnpm dev:db
+```
+
+Apply migrations:
+
+```bash
+pnpm db:migrate
+```
+
+Wipe DB and restart containers:
+
+```bash
+pnpm dev:db:reset
+```
+
+After a reset, apply migrations before running the API:
+
+```bash
+pnpm db:migrate
 ```
 
 Run the API:
@@ -128,6 +146,15 @@ Run the API:
 ```bash
 pnpm dev:api
 ```
+
+Run the worker:
+
+```bash
+pnpm dev:worker
+```
+
+The worker consumes Redis stream messages and persists tracked events to
+Postgres. Run it when testing ingestion end to end.
 
 Run the web app:
 
